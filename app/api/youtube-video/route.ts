@@ -4,9 +4,6 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const CHANNEL_ID = 'UC9DeY1sDhxmysPJEZJmHR4Q'
-
-// La playlist de videos subidos del canal se obtiene
-// cambiando el prefijo UC por UU.
 const UPLOADS_PLAYLIST_ID = CHANNEL_ID.replace(/^UC/, 'UU')
 
 export async function GET() {
@@ -25,11 +22,6 @@ export async function GET() {
       )
     }
 
-    /*
-     * Primero obtenemos los videos más recientes del canal.
-     * playlistItems.list tiene un costo de cuota muy bajo
-     * comparado con search.list.
-     */
     const playlistUrl =
       `https://www.googleapis.com/youtube/v3/playlistItems` +
       `?part=snippet,contentDetails` +
@@ -82,10 +74,6 @@ export async function GET() {
       })
     }
 
-    /*
-     * Ahora consultamos el estado real de esos videos.
-     * videos.list permite saber cuáles están actualmente en vivo.
-     */
     const videosUrl =
       `https://www.googleapis.com/youtube/v3/videos` +
       `?part=snippet,liveStreamingDetails,status` +
@@ -117,13 +105,8 @@ export async function GET() {
     }
 
     const videosData = await videosResponse.json()
-
     const videos = videosData.items ?? []
 
-    /*
-     * Buscamos una transmisión actualmente EN VIVO
-     * cuyo título corresponda al Informativo.
-     */
     const liveVideo = videos.find(
       (video: {
         id?: string
