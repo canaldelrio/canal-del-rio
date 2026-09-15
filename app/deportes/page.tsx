@@ -1,9 +1,11 @@
 import Link from 'next/link'
+
 import {
   ArrowRight,
   CalendarDays,
   Trophy,
 } from 'lucide-react'
+
 import Header from '@/components/Header'
 
 const deportes = [
@@ -12,24 +14,28 @@ const deportes = [
     description:
       'Noticias, resultados, análisis y actualidad del fútbol.',
     icon: '⚽',
+    subcategory: 'Fútbol',
   },
   {
     title: 'Deporte regional',
     description:
       'El talento deportivo de nuestra región y sus protagonistas.',
     icon: '🏆',
+    subcategory: 'Deporte regional',
   },
   {
     title: 'Polideportivo',
     description:
       'Toda la información de las diferentes disciplinas deportivas.',
     icon: '🏅',
+    subcategory: 'Polideportivo',
   },
   {
     title: 'Resultados',
     description:
       'Resultados, calendarios y datos de las principales competencias.',
     icon: '📊',
+    subcategory: 'Resultados',
   },
 ]
 
@@ -46,7 +52,10 @@ export default function DeportesPage() {
 
           <div className="relative max-w-4xl">
             <div className="flex items-center gap-2">
-              <Trophy size={18} className="text-sky-400" />
+              <Trophy
+                size={18}
+                className="text-sky-400"
+              />
 
               <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-400">
                 Canal del Río Deportes
@@ -58,8 +67,9 @@ export default function DeportesPage() {
             </h1>
 
             <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              Toda la actualidad deportiva, resultados, protagonistas y
-              acontecimientos que hacen vibrar a nuestra comunidad.
+              Toda la actualidad deportiva, resultados,
+              protagonistas y acontecimientos que hacen
+              vibrar a nuestra comunidad.
             </p>
           </div>
         </section>
@@ -111,7 +121,9 @@ export default function DeportesPage() {
                   </p>
 
                   <Link
-                    href="/noticias?categoria=Deportes"
+                    href={`/noticias?categoria=Deportes&subcategoria=${encodeURIComponent(
+                      deporte.subcategory
+                    )}`}
                     className="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-xs font-black uppercase tracking-wide text-sky-400"
                   >
                     Ver noticias
@@ -130,7 +142,10 @@ export default function DeportesPage() {
           <div className="flex flex-col items-center justify-between gap-5 px-6 py-7 text-center sm:flex-row sm:px-8 sm:text-left">
             <div>
               <div className="flex items-center justify-center gap-2 sm:justify-start">
-                <CalendarDays size={18} className="text-sky-400" />
+                <CalendarDays
+                  size={18}
+                  className="text-sky-400"
+                />
 
                 <span className="text-xs font-black uppercase tracking-widest text-sky-400">
                   Actualidad deportiva
@@ -151,6 +166,7 @@ export default function DeportesPage() {
               className="flex items-center gap-2 rounded-lg bg-sky-600 px-5 py-3 text-sm font-black text-white transition hover:bg-sky-500"
             >
               Ver noticias
+
               <ArrowRight size={17} />
             </Link>
           </div>

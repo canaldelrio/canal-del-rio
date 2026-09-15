@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { FormEvent, useState } from 'react'
+import { ChangeEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
@@ -9,6 +8,55 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
+
+type ContentBlock =
+  | {
+      type: 'text'
+      id: string
+      content: string
+    }
+  | {
+      type: 'image'
+      id: string
+      file: File | null
+      url: string
+      preview: string
+    }
+  | {
+      type: 'video'
+      id: string
+      file: File | null
+      url: string
+      preview: string
+    }
+  | {
+      type: 'image_group'
+      id: string
+      images: {
+        id: string
+        file: File | null
+        url: string
+        preview: string
+      }[]
+    }
+
+type SavedContentBlock =
+  | {
+      type: 'text'
+      content: string
+    }
+  | {
+      type: 'image'
+      url: string
+    }
+  | {
+      type: 'video'
+      url: string
+    }
+  | {
+      type: 'image_group'
+      images: string[]
+    }
 
 function crearSlug(texto: string) {
   return texto
@@ -21,101 +69,453 @@ function crearSlug(texto: string) {
     .replace(/-+/g, '-')
 }
 
+function crearId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export default function NuevaNoticia() {
   const router = useRouter()
 
   const [title, setTitle] = useState('')
   const [slug, setSlug] = useState('')
   const [category, setCategory] = useState('Noticias')
+  const [subcategory, setSubcategory] = useState('')
+
   const [image, setImage] = useState('')
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState('')
+  const [mainImageFile, setMainImageFile] = useState<File | null>(null)
+  const [mainImagePreview, setMainImagePreview] = useState('')
+
   const [excerpt, setExcerpt] = useState('')
-  const [content, setContent] = useState('')
-  const [author, setAuthor] = useState('Canal del Río')
+  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([])
+
+  const [author, setAuthor] = useState('')
   const [minutes, setMinutes] = useState('3')
   const [published, setPublished] = useState(true)
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  function cambiarTitulo(value: string) {
-    setTitle(value)
+  useEffect(() => {
+    return () => {
+      if (mainImagePreview) {
+        URL.revokeObjectURL(mainImagePreview)
+      }
 
-    if (!slug || slug === crearSlug(title)) {
-      setSlug(crearSlug(value))
+      contentBlocks.forEach((block) => {
+        if (
+          (block.type === 'image' || block.type === 'video') &&
+          block.preview
+        ) {
+          URL.revokeObjectURL(block.preview)
+        }
+
+        if (block.type === 'image_group') {
+          block.images.forEach((image) => {
+            if (image.preview) {
+              URL.revokeObjectURL(image.preview)
+            }
+          })
+        }
+      })
     }
-  }
+  }, [mainImagePreview, contentBlocks])
 
-  function seleccionarImagen(
-    event: React.ChangeEvent<HTMLInputElement>
+  useEffect(() => {
+    if (title.trim()) {
+      setSlug(crearSlug(title))
+    }
+  }, [title])
+
+  function seleccionarImagenPrincipal(
+    event: ChangeEvent<HTMLInputElement>
   ) {
     const file = event.target.files?.[0]
 
-    if (!file) {
-      setImageFile(null)
-      setImagePreview('')
-      return
-    }
+    if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      setError('El archivo seleccionado debe ser una imagen.')
+      setError('La imagen principal debe ser una imagen válida.')
       return
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setError('La imagen no puede superar los 5 MB.')
+      setError('La imagen principal no puede superar 5 MB.')
       return
     }
 
     setError('')
-    setImageFile(file)
 
-    const previewUrl = URL.createObjectURL(file)
-    setImagePreview(previewUrl)
-  }
-
-  async function subirImagen(): Promise<string | null> {
-    if (!imageFile) {
-      return image.trim() || null
+    if (mainImagePreview) {
+      URL.revokeObjectURL(mainImagePreview)
     }
 
-    const extension =
-      imageFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+    setMainImageFile(file)
+    setMainImagePreview(URL.createObjectURL(file))
+  }
 
-    const nombreArchivo = `${Date.now()}-${crearSlug(
-      title
-    )}.${extension}`
+  function agregarTexto() {
+    setContentBlocks((prev) => [
+      ...prev,
+      {
+        type: 'text',
+        id: crearId(),
+        content: '',
+      },
+    ])
+  }
 
-    const { error: uploadError } = await supabase.storage
-      .from('news-image')
-      .upload(nombreArchivo, imageFile, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: imageFile.type,
+  function agregarMultimedia(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const files = Array.from(event.target.files ?? [])
+
+    if (!files.length) return
+
+    const nuevosBloques: ContentBlock[] = []
+
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        if (file.size > 10 * 1024 * 1024) {
+          setError(
+            `La imagen "${file.name}" supera el límite de 10 MB.`
+          )
+          continue
+        }
+
+        nuevosBloques.push({
+          type: 'image',
+          id: crearId(),
+          file,
+          url: '',
+          preview: URL.createObjectURL(file),
+        })
+      } else if (file.type.startsWith('video/')) {
+        if (file.size > 100 * 1024 * 1024) {
+          setError(
+            `El video "${file.name}" supera el límite de 100 MB.`
+          )
+          continue
+        }
+
+        nuevosBloques.push({
+          type: 'video',
+          id: crearId(),
+          file,
+          url: '',
+          preview: URL.createObjectURL(file),
+        })
+      } else {
+        setError(
+          `El archivo "${file.name}" no es una imagen ni un video válido.`
+        )
+      }
+    }
+
+    if (nuevosBloques.length) {
+      setContentBlocks((prev) => [
+        ...prev,
+        ...nuevosBloques,
+      ])
+      setError('')
+    }
+
+    event.target.value = ''
+  }
+
+  function agregarContenedorImagenes(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const files = Array.from(event.target.files ?? [])
+
+    if (!files.length) return
+
+    const images = []
+
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        setError(
+          `El archivo "${file.name}" no es una imagen válida.`
+        )
+        continue
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        setError(
+          `La imagen "${file.name}" supera el límite de 10 MB.`
+        )
+        continue
+      }
+
+      images.push({
+        id: crearId(),
+        file,
+        url: '',
+        preview: URL.createObjectURL(file),
       })
+    }
 
-    if (uploadError) {
-      console.error(uploadError)
+    if (images.length) {
+      setContentBlocks((prev) => [
+        ...prev,
+        {
+          type: 'image_group',
+          id: crearId(),
+          images,
+        },
+      ])
 
-      setError(
-        `No se pudo subir la imagen: ${uploadError.message}`
+      setError('')
+    }
+
+    event.target.value = ''
+  }
+
+  function cambiarTexto(id: string, content: string) {
+    setContentBlocks((prev) =>
+      prev.map((block) =>
+        block.id === id && block.type === 'text'
+          ? {
+              ...block,
+              content,
+            }
+          : block
+      )
+    )
+  }
+
+  function agregarImagenAlContenedor(
+    blockId: string,
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const files = Array.from(event.target.files ?? [])
+
+    if (!files.length) return
+
+    const nuevasImagenes = []
+
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        setError(
+          `El archivo "${file.name}" no es una imagen válida.`
+        )
+        continue
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        setError(
+          `La imagen "${file.name}" supera el límite de 10 MB.`
+        )
+        continue
+      }
+
+      nuevasImagenes.push({
+        id: crearId(),
+        file,
+        url: '',
+        preview: URL.createObjectURL(file),
+      })
+    }
+
+    if (nuevasImagenes.length) {
+      setContentBlocks((prev) =>
+        prev.map((block) =>
+          block.id === blockId &&
+          block.type === 'image_group'
+            ? {
+                ...block,
+                images: [
+                  ...block.images,
+                  ...nuevasImagenes,
+                ],
+              }
+            : block
+        )
       )
 
-      return null
+      setError('')
     }
 
-    const { data } = supabase.storage
-      .from('news-image')
-      .getPublicUrl(nombreArchivo)
-
-    return data.publicUrl
+    event.target.value = ''
   }
 
-  async function guardarNoticia(
-    event: FormEvent<HTMLFormElement>
+  function eliminarImagenDelContenedor(
+    blockId: string,
+    imageId: string
   ) {
-    event.preventDefault()
+    setContentBlocks((prev) =>
+      prev.map((block) => {
+        if (
+          block.id !== blockId ||
+          block.type !== 'image_group'
+        ) {
+          return block
+        }
 
+        const image = block.images.find(
+          (item) => item.id === imageId
+        )
+
+        if (image?.preview) {
+          URL.revokeObjectURL(image.preview)
+        }
+
+        return {
+          ...block,
+          images: block.images.filter(
+            (item) => item.id !== imageId
+          ),
+        }
+      })
+    )
+  }
+
+  function moverImagenDentroDelContenedor(
+    blockId: string,
+    imageIndex: number,
+    direction: 'left' | 'right'
+  ) {
+    setContentBlocks((prev) =>
+      prev.map((block) => {
+        if (
+          block.id !== blockId ||
+          block.type !== 'image_group'
+        ) {
+          return block
+        }
+
+        const newImages = [...block.images]
+
+        const newIndex =
+          direction === 'left'
+            ? imageIndex - 1
+            : imageIndex + 1
+
+        if (
+          newIndex < 0 ||
+          newIndex >= newImages.length
+        ) {
+          return block
+        }
+
+        const [moved] = newImages.splice(
+          imageIndex,
+          1
+        )
+
+        newImages.splice(newIndex, 0, moved)
+
+        return {
+          ...block,
+          images: newImages,
+        }
+      })
+    )
+  }
+
+  function eliminarBloque(id: string) {
+    setContentBlocks((prev) => {
+      const block = prev.find(
+        (item) => item.id === id
+      )
+
+      if (!block) return prev
+
+      if (
+        (block.type === 'image' ||
+          block.type === 'video') &&
+        block.preview
+      ) {
+        URL.revokeObjectURL(block.preview)
+      }
+
+      if (block.type === 'image_group') {
+        block.images.forEach((image) => {
+          if (image.preview) {
+            URL.revokeObjectURL(image.preview)
+          }
+        })
+      }
+
+      return prev.filter((item) => item.id !== id)
+    })
+  }
+
+  function moverBloque(
+    index: number,
+    direction: 'up' | 'down'
+  ) {
+    setContentBlocks((prev) => {
+      const newBlocks = [...prev]
+
+      const newIndex =
+        direction === 'up'
+          ? index - 1
+          : index + 1
+
+      if (
+        newIndex < 0 ||
+        newIndex >= newBlocks.length
+      ) {
+        return prev
+      }
+
+      const [moved] = newBlocks.splice(
+        index,
+        1
+      )
+
+      newBlocks.splice(newIndex, 0, moved)
+
+      return newBlocks
+    })
+  }
+
+  async function subirArchivo(
+    file: File,
+    carpeta: string
+  ) {
+    const extension =
+      file.name.split('.').pop() || 'file'
+
+    const nombre =
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${extension}`
+
+    const ruta = `${carpeta}/${nombre}`
+
+    const { error: uploadError } =
+      await supabase.storage
+        .from('news-image')
+        .upload(ruta, file)
+
+    if (uploadError) {
+      throw uploadError
+    }
+
+    const {
+      data: publicData,
+    } = supabase.storage
+      .from('news-image')
+      .getPublicUrl(ruta)
+
+    return publicData.publicUrl
+  }
+
+  function obtenerTextoCompleto() {
+    return contentBlocks
+      .filter(
+        (block): block is Extract<
+          ContentBlock,
+          { type: 'text' }
+        > => block.type === 'text'
+      )
+      .map((block) => block.content.trim())
+      .filter(Boolean)
+      .join('\n\n')
+  }
+
+  async function guardarNoticia() {
     setError('')
 
     if (!title.trim()) {
@@ -133,332 +533,828 @@ export default function NuevaNoticia() {
       return
     }
 
-    if (!content.trim()) {
-      setError('Debes escribir el contenido de la noticia.')
+    if (!mainImageFile) {
+      setError(
+        'Debes seleccionar una imagen principal.'
+      )
+      return
+    }
+
+    if (
+      category === 'Deportes' &&
+      !subcategory
+    ) {
+      setError(
+        'Debes seleccionar una sección deportiva.'
+      )
+      return
+    }
+
+    const textoCompleto =
+      obtenerTextoCompleto()
+
+    if (!textoCompleto) {
+      setError(
+        'Debes agregar al menos un bloque de texto.'
+      )
+      return
+    }
+
+    const gruposVacios = contentBlocks.some(
+      (block) =>
+        block.type === 'image_group' &&
+        block.images.length === 0
+    )
+
+    if (gruposVacios) {
+      setError(
+        'Hay un contenedor de imágenes vacío.'
+      )
       return
     }
 
     setSaving(true)
 
-    const imageUrl = await subirImagen()
-
-    if (imageFile && !imageUrl) {
-      setSaving(false)
-      return
-    }
-
-    const { error: insertError } = await supabase
-      .from('news')
-      .insert({
-        title: title.trim(),
-        slug: slug.trim(),
-        category: category.trim() || 'Noticias',
-        image: imageUrl || '',
-        excerpt: excerpt.trim(),
-        content: content.trim(),
-        author: author.trim() || 'Canal del Río',
-        minutes: minutes.trim() || '3',
-        published,
-      })
-
-    if (insertError) {
-      console.error(insertError)
-
-      if (insertError.code === '23505') {
-        setError(
-          'Ya existe una noticia con ese slug. Cambia el slug e inténtalo nuevamente.'
+    try {
+      const imageUrl =
+        await subirArchivo(
+          mainImageFile,
+          'main'
         )
-      } else {
-        setError(
-          `No se pudo guardar la noticia: ${insertError.message}`
-        )
+
+      const savedBlocks: SavedContentBlock[] =
+        []
+
+      for (const block of contentBlocks) {
+        if (block.type === 'text') {
+          savedBlocks.push({
+            type: 'text',
+            content: block.content,
+          })
+
+          continue
+        }
+
+        if (
+          block.type === 'image' ||
+          block.type === 'video'
+        ) {
+          let url = block.url
+
+          if (block.file) {
+            url = await subirArchivo(
+              block.file,
+              block.type === 'image'
+                ? 'content-images'
+                : 'content-videos'
+            )
+          }
+
+          savedBlocks.push({
+            type: block.type,
+            url,
+          })
+
+          continue
+        }
+
+        if (block.type === 'image_group') {
+          const imageUrls: string[] = []
+
+          for (const image of block.images) {
+            let url = image.url
+
+            if (image.file) {
+              url = await subirArchivo(
+                image.file,
+                'content-images'
+              )
+            }
+
+            if (url) {
+              imageUrls.push(url)
+            }
+          }
+
+          savedBlocks.push({
+            type: 'image_group',
+            images: imageUrls,
+          })
+        }
       }
 
-      setSaving(false)
-      return
-    }
+      const media = savedBlocks
+        .flatMap((block) => {
+          if (
+            block.type === 'image' ||
+            block.type === 'video'
+          ) {
+            return [
+              {
+                type: block.type,
+                url: block.url,
+              },
+            ]
+          }
 
-    router.push('/admin/noticias')
-    router.refresh()
+          if (block.type === 'image_group') {
+            return block.images.map(
+              (url) => ({
+                type: 'image',
+                url,
+              })
+            )
+          }
+
+          return []
+        })
+
+      const {
+        error: insertError,
+      } = await supabase
+        .from('news')
+        .insert({
+          title: title.trim(),
+
+          slug: slug.trim(),
+
+          category:
+            category.trim() || 'Noticias',
+
+          subcategory:
+            category === 'Deportes'
+              ? subcategory.trim()
+              : null,
+
+          image: imageUrl || '',
+
+          media,
+
+          content: textoCompleto,
+
+          content_blocks: savedBlocks,
+
+          excerpt: excerpt.trim(),
+
+          author:
+            author.trim() ||
+            'Canal del Río',
+
+          minutes:
+            minutes.trim() || '3',
+
+          published,
+        })
+
+      if (insertError) {
+        throw insertError
+      }
+
+      router.push('/admin/noticias')
+      router.refresh()
+    } catch (error) {
+      console.error(
+        'Error guardando noticia:',
+        error
+      )
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : 'No fue posible guardar la noticia.'
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <form
-      onSubmit={guardarNoticia}
-      className="overflow-hidden rounded-2xl border border-white/10 bg-[#030b14]"
-    >
-      <div className="space-y-6 p-5 sm:p-7">
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mb-8">
+        <div className="flex items-center gap-2">
+          <span className="h-7 w-1 rounded-full bg-sky-500" />
 
-        {/* TÍTULO */}
-        <div>
-          <label
-            htmlFor="title"
-            className="mb-2 block text-sm font-bold text-slate-200"
-          >
-            Título *
-          </label>
-
-          <input
-            id="title"
-            type="text"
-            value={title}
-            onChange={(event) =>
-              cambiarTitulo(event.target.value)
-            }
-            placeholder="Ej: Nuevas obras mejorarán la vía principal"
-            className="w-full rounded-lg border border-white/10 bg-[#020912] px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-500"
-          />
+          <h1 className="text-2xl font-black uppercase tracking-tight text-white">
+            Nueva noticia
+          </h1>
         </div>
 
-        {/* SLUG */}
-        <div>
-          <label
-            htmlFor="slug"
-            className="mb-2 block text-sm font-bold text-slate-200"
-          >
-            Slug *
-          </label>
+        <p className="mt-2 text-sm text-slate-400">
+          Crea y publica una nueva noticia en Canal del Río.
+        </p>
+      </div>
 
-          <input
-            id="slug"
-            type="text"
-            value={slug}
-            onChange={(event) =>
-              setSlug(crearSlug(event.target.value))
-            }
-            placeholder="nuevas-obras-via-principal"
-            className="w-full rounded-lg border border-white/10 bg-[#020912] px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-500"
-          />
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
-          <p className="mt-2 text-xs text-slate-500">
-            URL: /noticias/{slug || 'mi-noticia'}
+      <div className="space-y-6">
+        {/* INFORMACIÓN PRINCIPAL */}
+        <section className="rounded-xl border border-white/10 bg-[#030b14] p-5">
+          <h2 className="mb-5 text-lg font-black uppercase text-white">
+            Información principal
+          </h2>
+
+          <div className="space-y-5">
+            {/* TÍTULO */}
+            <div>
+              <label
+                htmlFor="title"
+                className="mb-2 block text-sm font-bold text-slate-200"
+              >
+                Título
+              </label>
+
+              <input
+                id="title"
+                value={title}
+                onChange={(event) =>
+                  setTitle(event.target.value)
+                }
+                placeholder="Escribe el título de la noticia"
+                className="w-full rounded-lg border border-white/10 bg-[#081b30] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-500/50"
+              />
+            </div>
+
+            {/* SLUG */}
+            <div>
+              <label
+                htmlFor="slug"
+                className="mb-2 block text-sm font-bold text-slate-200"
+              >
+                Slug
+              </label>
+
+              <input
+                id="slug"
+                value={slug}
+                onChange={(event) =>
+                  setSlug(
+                    crearSlug(event.target.value)
+                  )
+                }
+                placeholder="slug-de-la-noticia"
+                className="w-full rounded-lg border border-white/10 bg-[#081b30] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-500/50"
+              />
+            </div>
+
+            {/* CATEGORÍA */}
+            <div>
+              <label
+                htmlFor="category"
+                className="mb-2 block text-sm font-bold text-slate-200"
+              >
+                Categoría
+              </label>
+
+              <select
+                id="category"
+                value={category}
+                onChange={(event) => {
+                  setCategory(
+                    event.target.value
+                  )
+                  setSubcategory('')
+                }}
+                className="w-full rounded-lg border border-white/10 bg-[#081b30] px-4 py-3 text-sm text-white outline-none focus:border-sky-500/50"
+              >
+                <option value="Noticias">
+                  Noticias
+                </option>
+
+                <option value="Política">
+                  Política
+                </option>
+
+                <option value="Judicial">
+                  Judicial
+                </option>
+
+                <option value="Regional">
+                  Regional
+                </option>
+
+                <option value="Nacional">
+                  Nacional
+                </option>
+
+                <option value="Internacional">
+                  Internacional
+                </option>
+
+                <option value="Deportes">
+                  Deportes
+                </option>
+
+                <option value="Cultura">
+                  Cultura
+                </option>
+
+                <option value="Economía">
+                  Economía
+                </option>
+
+                <option value="Tecnología">
+                  Tecnología
+                </option>
+
+                <option value="Entretenimiento">
+                  Entretenimiento
+                </option>
+              </select>
+            </div>
+
+            {/* SUBCATEGORÍA DEPORTIVA */}
+            {category === 'Deportes' && (
+              <div>
+                <label
+                  htmlFor="subcategory"
+                  className="mb-2 block text-sm font-bold text-slate-200"
+                >
+                  Sección deportiva
+                </label>
+
+                <select
+                  id="subcategory"
+                  value={subcategory}
+                  onChange={(event) =>
+                    setSubcategory(
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-lg border border-white/10 bg-[#081b30] px-4 py-3 text-sm text-white outline-none focus:border-sky-500/50"
+                >
+                  <option value="">
+                    Selecciona una sección
+                  </option>
+
+                  <option value="Fútbol">
+                    Fútbol
+                  </option>
+
+                  <option value="Deporte regional">
+                    Deporte regional
+                  </option>
+
+                  <option value="Polideportivo">
+                    Polideportivo
+                  </option>
+
+                  <option value="Resultados">
+                    Resultados
+                  </option>
+                </select>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  Esta sección determina dónde aparecerá
+                  la noticia dentro de Deportes.
+                </p>
+              </div>
+            )}
+
+            {/* ENTRADILLA */}
+            <div>
+              <label
+                htmlFor="excerpt"
+                className="mb-2 block text-sm font-bold text-slate-200"
+              >
+                Entradilla
+              </label>
+
+              <textarea
+                id="excerpt"
+                value={excerpt}
+                onChange={(event) =>
+                  setExcerpt(
+                    event.target.value
+                  )
+                }
+                rows={4}
+                placeholder="Escribe una breve introducción de la noticia"
+                className="w-full resize-y rounded-lg border border-white/10 bg-[#081b30] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-500/50"
+              />
+            </div>
+
+            {/* AUTOR Y TIEMPO */}
+            <div className="grid gap-5 md:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="author"
+                  className="mb-2 block text-sm font-bold text-slate-200"
+                >
+                  Autor
+                </label>
+
+                <input
+                  id="author"
+                  value={author}
+                  onChange={(event) =>
+                    setAuthor(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Canal del Río"
+                  className="w-full rounded-lg border border-white/10 bg-[#081b30] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-500/50"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="minutes"
+                  className="mb-2 block text-sm font-bold text-slate-200"
+                >
+                  Tiempo de lectura
+                </label>
+
+                <input
+                  id="minutes"
+                  value={minutes}
+                  onChange={(event) =>
+                    setMinutes(
+                      event.target.value
+                    )
+                  }
+                  placeholder="3"
+                  className="w-full rounded-lg border border-white/10 bg-[#081b30] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-500/50"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* IMAGEN PRINCIPAL */}
+        <section className="rounded-xl border border-white/10 bg-[#030b14] p-5">
+          <h2 className="mb-2 text-lg font-black uppercase text-white">
+            Imagen principal
+          </h2>
+
+          <p className="mb-5 text-xs text-slate-500">
+            Esta será la imagen principal que aparecerá
+            en la portada y al abrir la noticia.
           </p>
-        </div>
-
-        {/* CATEGORÍA + AUTOR */}
-        <div className="grid gap-6 sm:grid-cols-2">
-
-          <div>
-            <label
-              htmlFor="category"
-              className="mb-2 block text-sm font-bold text-slate-200"
-            >
-              Categoría
-            </label>
-
-            <input
-              id="category"
-              type="text"
-              value={category}
-              onChange={(event) =>
-                setCategory(event.target.value)
-              }
-              placeholder="Noticias"
-              className="w-full rounded-lg border border-white/10 bg-[#020912] px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-500"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="author"
-              className="mb-2 block text-sm font-bold text-slate-200"
-            >
-              Autor
-            </label>
-
-            <input
-              id="author"
-              type="text"
-              value={author}
-              onChange={(event) =>
-                setAuthor(event.target.value)
-              }
-              placeholder="Canal del Río"
-              className="w-full rounded-lg border border-white/10 bg-[#020912] px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-500"
-            />
-          </div>
-
-        </div>
-
-        {/* IMAGEN */}
-        <div>
-          <label
-            htmlFor="imageFile"
-            className="mb-2 block text-sm font-bold text-slate-200"
-          >
-            Imagen de la noticia
-          </label>
 
           <input
-            id="imageFile"
             type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            onChange={seleccionarImagen}
-            className="block w-full cursor-pointer rounded-lg border border-white/10 bg-[#020912] px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-md file:border-0 file:bg-sky-600 file:px-4 file:py-2 file:font-bold file:text-white hover:file:bg-sky-500"
+            accept="image/*"
+            onChange={seleccionarImagenPrincipal}
+            className="block w-full rounded-lg border border-white/10 bg-[#081b30] p-3 text-sm text-slate-300 file:mr-4 file:rounded-md file:border-0 file:bg-sky-500 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-sky-400"
           />
 
-          <p className="mt-2 text-xs text-slate-500">
-            JPG, PNG, WEBP o GIF. Máximo 5 MB.
-          </p>
-
-          {/* VISTA PREVIA */}
-          {imagePreview && (
-            <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#020912]">
+          {mainImagePreview && (
+            <div className="mt-5 overflow-hidden rounded-xl border border-white/10">
               <img
-                src={imagePreview}
+                src={mainImagePreview}
                 alt="Vista previa"
-                className="max-h-[400px] w-full object-cover"
+                className="max-h-[450px] w-full object-cover"
               />
             </div>
           )}
-
-          {/* URL OPCIONAL */}
-          <div className="mt-4">
-            <label
-              htmlFor="image"
-              className="mb-2 block text-xs font-bold text-slate-400"
-            >
-              O pegar URL pública de imagen
-            </label>
-
-            <input
-              id="image"
-              type="url"
-              value={image}
-              onChange={(event) =>
-                setImage(event.target.value)
-              }
-              placeholder="https://..."
-              className="w-full rounded-lg border border-white/10 bg-[#020912] px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-500"
-            />
-          </div>
-        </div>
-
-        {/* ENTRADILLA */}
-        <div>
-          <label
-            htmlFor="excerpt"
-            className="mb-2 block text-sm font-bold text-slate-200"
-          >
-            Entradilla *
-          </label>
-
-          <textarea
-            id="excerpt"
-            value={excerpt}
-            onChange={(event) =>
-              setExcerpt(event.target.value)
-            }
-            rows={3}
-            placeholder="Escribe un resumen breve de la noticia..."
-            className="w-full resize-y rounded-lg border border-white/10 bg-[#020912] px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-500"
-          />
-        </div>
+        </section>
 
         {/* CONTENIDO */}
-        <div>
-          <label
-            htmlFor="content"
-            className="mb-2 block text-sm font-bold text-slate-200"
-          >
-            Contenido *
-          </label>
+        <section className="rounded-xl border border-white/10 bg-[#030b14] p-5">
+          <div className="mb-5">
+            <h2 className="text-lg font-black uppercase text-white">
+              Contenido de la noticia
+            </h2>
 
-          <textarea
-            id="content"
-            value={content}
-            onChange={(event) =>
-              setContent(event.target.value)
-            }
-            rows={14}
-            placeholder="Escribe aquí el contenido completo de la noticia..."
-            className="w-full resize-y rounded-lg border border-white/10 bg-[#020912] px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-500"
-          />
+            <p className="mt-1 text-xs text-slate-500">
+              Organiza el artículo colocando textos,
+              imágenes, videos y documentos en el orden que quieras.
+            </p>
+          </div>
 
-          <p className="mt-2 text-xs text-slate-500">
-            Puedes separar los párrafos dejando una línea en blanco.
-          </p>
-        </div>
+          <div className="mb-6 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={agregarTexto}
+              className="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-sky-500"
+            >
+              + Agregar texto
+            </button>
 
-        {/* TIEMPO DE LECTURA */}
-        <div className="sm:w-1/2">
-          <label
-            htmlFor="minutes"
-            className="mb-2 block text-sm font-bold text-slate-200"
-          >
-            Tiempo de lectura
-          </label>
+            <label className="cursor-pointer rounded-lg border border-white/10 bg-[#081b30] px-4 py-2.5 text-sm font-bold text-white transition hover:border-sky-500/30 hover:bg-[#0b2945]">
+              + Agregar imagen/video
 
-          <input
-            id="minutes"
-            type="text"
-            value={minutes}
-            onChange={(event) =>
-              setMinutes(event.target.value)
-            }
-            placeholder="3 min"
-            className="w-full rounded-lg border border-white/10 bg-[#020912] px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-sky-500"
-          />
+              <input
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                onChange={agregarMultimedia}
+                className="hidden"
+              />
+            </label>
 
-          <p className="mt-2 text-xs text-slate-500">
-            Ejemplo: 3 min
-          </p>
-        </div>
+            <label className="cursor-pointer rounded-lg border border-white/10 bg-[#081b30] px-4 py-2.5 text-sm font-bold text-white transition hover:border-sky-500/30 hover:bg-[#0b2945]">
+              + Contenedor de imágenes
 
-        {/* PUBLICAR */}
-        <div className="rounded-xl border border-white/10 bg-[#020912] p-4">
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={
+                  agregarContenedorImagenes
+                }
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          <div className="space-y-5">
+            {contentBlocks.length === 0 && (
+              <div className="rounded-xl border border-dashed border-white/10 bg-[#081b30]/40 px-5 py-10 text-center">
+                <p className="text-sm font-semibold text-slate-400">
+                  Todavía no has agregado contenido.
+                </p>
+
+                <p className="mt-1 text-xs text-slate-600">
+                  Agrega texto, imágenes, videos o un contenedor de imágenes.
+                </p>
+              </div>
+            )}
+
+            {contentBlocks.map(
+              (block, index) => (
+                <div
+                  key={block.id}
+                  className="rounded-xl border border-white/10 bg-[#081b30] p-4"
+                >
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs font-black uppercase tracking-wider text-sky-400">
+                      {block.type === 'text' &&
+                        `Texto ${index + 1}`}
+
+                      {block.type === 'image' &&
+                        `Imagen ${index + 1}`}
+
+                      {block.type === 'video' &&
+                        `Video ${index + 1}`}
+
+                      {block.type ===
+                        'image_group' &&
+                        `Contenedor de imágenes ${index + 1}`}
+                    </span>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          moverBloque(
+                            index,
+                            'up'
+                          )
+                        }
+                        disabled={index === 0}
+                        className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        ↑
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          moverBloque(
+                            index,
+                            'down'
+                          )
+                        }
+                        disabled={
+                          index ===
+                          contentBlocks.length - 1
+                        }
+                        className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        ↓
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          eliminarBloque(
+                            block.id
+                          )
+                        }
+                        className="rounded-md border border-red-500/20 px-3 py-1.5 text-xs text-red-400"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+
+                  {block.type === 'text' && (
+                    <textarea
+                      value={block.content}
+                      onChange={(event) =>
+                        cambiarTexto(
+                          block.id,
+                          event.target.value
+                        )
+                      }
+                      rows={7}
+                      placeholder="Escribe aquí el contenido de esta parte de la noticia..."
+                      className="w-full resize-y rounded-lg border border-white/10 bg-[#030b14] px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-slate-600 focus:border-sky-500/50"
+                    />
+                  )}
+
+                  {block.type === 'image' && (
+                    <div className="overflow-hidden rounded-lg border border-white/10">
+                      <img
+                        src={block.preview || block.url}
+                        alt="Imagen del contenido"
+                        className="max-h-[600px] w-full object-contain"
+                      />
+                    </div>
+                  )}
+
+                  {block.type === 'video' && (
+                    <video
+                      src={block.preview || block.url}
+                      controls
+                      className="max-h-[600px] w-full rounded-lg bg-black"
+                    />
+                  )}
+
+                  {block.type ===
+                    'image_group' && (
+                    <div>
+                      <div className="mb-4 rounded-lg border border-sky-500/10 bg-sky-500/[0.03] px-4 py-3">
+                        <p className="text-xs font-bold text-sky-400">
+                          Contenedor de imágenes
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          Estas imágenes se mostrarán como
+                          una sola secuencia en la noticia.
+                        </p>
+                      </div>
+
+                      {block.images.length === 0 && (
+                        <div className="rounded-lg border border-dashed border-white/10 p-8 text-center">
+                          <p className="text-xs text-slate-500">
+                            No hay imágenes en este contenedor.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {block.images.map(
+                          (
+                            image,
+                            imageIndex
+                          ) => (
+                            <div
+                              key={image.id}
+                              className="overflow-hidden rounded-lg border border-white/10 bg-[#030b14]"
+                            >
+                              <div className="relative">
+                                <img
+                                  src={
+                                    image.preview ||
+                                    image.url
+                                  }
+                                  alt={`Página ${
+                                    imageIndex + 1
+                                  }`}
+                                  className="aspect-[3/4] w-full object-contain bg-black"
+                                />
+
+                                <div className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-1 text-[10px] font-bold text-white">
+                                  Página{' '}
+                                  {imageIndex + 1}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 p-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    moverImagenDentroDelContenedor(
+                                      block.id,
+                                      imageIndex,
+                                      'left'
+                                    )
+                                  }
+                                  disabled={
+                                    imageIndex ===
+                                    0
+                                  }
+                                  className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 disabled:opacity-30"
+                                >
+                                  ←
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    moverImagenDentroDelContenedor(
+                                      block.id,
+                                      imageIndex,
+                                      'right'
+                                    )
+                                  }
+                                  disabled={
+                                    imageIndex ===
+                                    block.images.length -
+                                      1
+                                  }
+                                  className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 disabled:opacity-30"
+                                >
+                                  →
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    eliminarImagenDelContenedor(
+                                      block.id,
+                                      image.id
+                                    )
+                                  }
+                                  className="rounded-md border border-red-500/20 px-3 py-1.5 text-xs text-red-400"
+                                >
+                                  Quitar
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+
+                      <label className="mt-4 inline-flex cursor-pointer rounded-lg border border-white/10 bg-[#030b14] px-4 py-2.5 text-xs font-bold text-white transition hover:border-sky-500/30">
+                        + Agregar más páginas
+
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={(event) =>
+                            agregarImagenAlContenedor(
+                              block.id,
+                              event
+                            )
+                          }
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+        </section>
+
+        {/* PUBLICACIÓN */}
+        <section className="rounded-xl border border-white/10 bg-[#030b14] p-5">
+          <h2 className="mb-5 text-lg font-black uppercase text-white">
+            Publicación
+          </h2>
+
           <label className="flex cursor-pointer items-center gap-3">
-
             <input
               type="checkbox"
               checked={published}
               onChange={(event) =>
-                setPublished(event.target.checked)
+                setPublished(
+                  event.target.checked
+                )
               }
-              className="h-5 w-5 accent-sky-500"
+              className="h-4 w-4 rounded border-white/20 bg-[#081b30]"
             />
 
-            <div>
-              <div className="font-bold text-white">
-                Publicar noticia
-              </div>
-
-              <div className="text-sm text-slate-500">
-                Si está activado, aparecerá inmediatamente en Noticias.
-              </div>
-            </div>
-
+            <span className="text-sm font-semibold text-slate-300">
+              Publicar inmediatamente
+            </span>
           </label>
+        </section>
+
+        {/* BOTONES */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() =>
+              router.push('/admin/noticias')
+            }
+            disabled={saving}
+            className="rounded-lg border border-white/10 bg-[#081b30] px-6 py-3 text-sm font-bold text-slate-300 transition hover:bg-[#0b2945] disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="button"
+            onClick={guardarNoticia}
+            disabled={saving}
+            className="rounded-lg bg-sky-600 px-6 py-3 text-sm font-black text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving
+              ? 'Guardando...'
+              : 'Guardar noticia'}
+          </button>
         </div>
-
-        {/* ERROR */}
-        {error && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-sm font-semibold text-red-400">
-            {error}
-          </div>
-        )}
-
       </div>
-
-      {/* BOTONES */}
-      <div className="flex flex-col gap-3 border-t border-white/10 bg-[#020912] p-5 sm:flex-row sm:justify-end">
-
-        <Link
-          href="/admin/noticias"
-          className="inline-flex items-center justify-center rounded-lg border border-white/10 px-5 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white"
-        >
-          Cancelar
-        </Link>
-
-        <button
-          type="submit"
-          disabled={saving}
-          className="inline-flex items-center justify-center rounded-lg bg-sky-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? 'Guardando...' : 'Guardar noticia'}
-        </button>
-
-      </div>
-    </form>
+    </div>
   )
 }

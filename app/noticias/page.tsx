@@ -16,35 +16,62 @@ const categorias = [
   'Opinión',
 ]
 
+const seccionesDeportivas = [
+  'Fútbol',
+  'Deporte regional',
+  'Polideportivo',
+  'Resultados',
+]
+
 export default async function NoticiasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; categoria?: string }>
+  searchParams: Promise<{
+    q?: string
+    categoria?: string
+    subcategoria?: string
+  }>
 }) {
   const params = await searchParams
 
   const query = params.q?.trim() || ''
-  const categoria = params.categoria?.trim() || 'Todas'
+
+  const categoria =
+    params.categoria?.trim() || 'Todas'
+
+  const subcategoria =
+    params.subcategoria?.trim() || ''
 
   let newsQuery = supabase
     .from('news')
     .select(
-      'id, title, slug, category, image, excerpt, author, minutes, created_at'
+      'id, title, slug, category, subcategory, image, excerpt, author, minutes, created_at'
     )
     .eq('published', true)
     .order('created_at', { ascending: false })
 
   if (query) {
     newsQuery = newsQuery.or(
-      `title.ilike.%${query}%,category.ilike.%${query}%,excerpt.ilike.%${query}%`
+      `title.ilike.%${query}%,category.ilike.%${query}%,subcategory.ilike.%${query}%,excerpt.ilike.%${query}%`
     )
   }
 
   if (categoria !== 'Todas') {
-    newsQuery = newsQuery.ilike('category', categoria)
+    newsQuery = newsQuery.ilike(
+      'category',
+      categoria
+    )
   }
 
-  const { data: news, error } = await newsQuery
+  if (subcategoria) {
+    newsQuery = newsQuery.ilike(
+      'subcategory',
+      subcategoria
+    )
+  }
+
+  const { data: news, error } =
+    await newsQuery
 
   if (error) {
     return (
@@ -60,12 +87,19 @@ export default async function NoticiasPage({
     )
   }
 
+  const mostrandoSeccionDeportiva =
+    categoria === 'Deportes' &&
+    seccionesDeportivas.includes(
+      subcategoria
+    )
+
   return (
     <>
       <Header />
 
       <main className="min-h-screen bg-[#020912] px-4 pb-16 text-white sm:px-6 lg:px-8">
         <div className="mx-auto max-w-[1440px]">
+
           <section className="relative overflow-hidden rounded-b-xl border-x border-b border-white/10 bg-[#030b14] px-6 py-12 sm:px-10 lg:py-16">
             <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
 
@@ -73,7 +107,10 @@ export default async function NoticiasPage({
 
             <div className="relative max-w-4xl">
               <div className="flex items-center gap-2">
-                <Newspaper size={18} className="text-sky-400" />
+                <Newspaper
+                  size={18}
+                  className="text-sky-400"
+                />
 
                 <span className="text-xs font-black uppercase tracking-[0.2em] text-sky-400">
                   Canal del Río
@@ -85,8 +122,9 @@ export default async function NoticiasPage({
               </h1>
 
               <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Información nacional, internacional, regional y local.
-                Noticias que conectan con nuestra comunidad.
+                Información nacional, internacional,
+                regional y local. Noticias que conectan
+                con nuestra comunidad.
               </p>
             </div>
           </section>
@@ -102,7 +140,8 @@ export default async function NoticiasPage({
               </div>
 
               <p className="mt-1 text-xs text-slate-400">
-                Encuentra rápidamente una noticia publicada por Canal del Río
+                Encuentra rápidamente una noticia publicada
+                por Canal del Río
               </p>
             </div>
 
@@ -131,6 +170,14 @@ export default async function NoticiasPage({
                     value={categoria}
                   />
                 )}
+
+                {subcategoria && (
+                  <input
+                    type="hidden"
+                    name="subcategoria"
+                    value={subcategoria}
+                  />
+                )}
               </div>
 
               <button
@@ -140,7 +187,9 @@ export default async function NoticiasPage({
                 Buscar
               </button>
 
-              {(query || categoria !== 'Todas') && (
+              {(query ||
+                categoria !== 'Todas' ||
+                subcategoria) && (
                 <a
                   href="/noticias"
                   className="flex h-12 items-center justify-center rounded-lg border border-white/10 px-5 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white"
@@ -168,21 +217,31 @@ export default async function NoticiasPage({
 
             <div className="flex gap-2 overflow-x-auto pb-2">
               {categorias.map((item) => {
-                const activa = categoria === item
+                const activa =
+                  categoria === item &&
+                  !subcategoria
 
-                const paramsCategoria = new URLSearchParams()
+                const paramsCategoria =
+                  new URLSearchParams()
 
                 if (query) {
-                  paramsCategoria.set('q', query)
+                  paramsCategoria.set(
+                    'q',
+                    query
+                  )
                 }
 
                 if (item !== 'Todas') {
-                  paramsCategoria.set('categoria', item)
+                  paramsCategoria.set(
+                    'categoria',
+                    item
+                  )
                 }
 
-                const href = paramsCategoria.toString()
-                  ? `/noticias?${paramsCategoria.toString()}`
-                  : '/noticias'
+                const href =
+                  paramsCategoria.toString()
+                    ? `/noticias?${paramsCategoria.toString()}`
+                    : '/noticias'
 
                 return (
                   <a
@@ -201,6 +260,83 @@ export default async function NoticiasPage({
             </div>
           </section>
 
+          {categoria === 'Deportes' && (
+            <section className="mt-6">
+              <div className="mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="h-6 w-1 rounded-full bg-sky-500" />
+
+                  <h2 className="text-xl font-black uppercase tracking-tight">
+                    Especialidades deportivas
+                  </h2>
+                </div>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Explora las noticias por disciplina
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={`/noticias?categoria=Deportes${
+                    query
+                      ? `&q=${encodeURIComponent(query)}`
+                      : ''
+                  }`}
+                  className={`rounded-lg border px-4 py-2.5 text-xs font-black transition ${
+                    !subcategoria
+                      ? 'border-sky-500 bg-sky-600 text-white'
+                      : 'border-white/10 bg-[#07182a] text-slate-400 hover:border-sky-500/40 hover:text-white'
+                  }`}
+                >
+                  Todos
+                </a>
+
+                {seccionesDeportivas.map(
+                  (seccion) => {
+                    const activa =
+                      subcategoria ===
+                      seccion
+
+                    const paramsSeccion =
+                      new URLSearchParams()
+
+                    paramsSeccion.set(
+                      'categoria',
+                      'Deportes'
+                    )
+
+                    paramsSeccion.set(
+                      'subcategoria',
+                      seccion
+                    )
+
+                    if (query) {
+                      paramsSeccion.set(
+                        'q',
+                        query
+                      )
+                    }
+
+                    return (
+                      <a
+                        key={seccion}
+                        href={`/noticias?${paramsSeccion.toString()}`}
+                        className={`rounded-lg border px-4 py-2.5 text-xs font-black transition ${
+                          activa
+                            ? 'border-sky-500 bg-sky-600 text-white'
+                            : 'border-white/10 bg-[#07182a] text-slate-400 hover:border-sky-500/40 hover:text-white'
+                        }`}
+                      >
+                        {seccion}
+                      </a>
+                    )
+                  }
+                )}
+              </div>
+            </section>
+          )}
+
           <section className="mt-8">
             <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
@@ -208,7 +344,9 @@ export default async function NoticiasPage({
                   <span className="h-6 w-1 rounded-full bg-sky-500" />
 
                   <h2 className="text-xl font-black uppercase tracking-tight">
-                    {query || categoria !== 'Todas'
+                    {query ||
+                    categoria !== 'Todas' ||
+                    subcategoria
                       ? 'Resultados'
                       : 'Últimas noticias'}
                   </h2>
@@ -217,9 +355,11 @@ export default async function NoticiasPage({
                 <p className="mt-1 text-xs text-slate-400">
                   {query
                     ? `Resultados para: "${query}"`
-                    : categoria !== 'Todas'
-                      ? `Noticias de ${categoria}`
-                      : 'La información más reciente de Canal del Río'}
+                    : mostrandoSeccionDeportiva
+                      ? `Noticias de Deportes · ${subcategoria}`
+                      : categoria !== 'Todas'
+                        ? `Noticias de ${categoria}`
+                        : 'La información más reciente de Canal del Río'}
                 </p>
               </div>
 
@@ -241,7 +381,9 @@ export default async function NoticiasPage({
                     key={item.id}
                     item={{
                       ...item,
-                      date: new Date(item.created_at).toLocaleDateString(
+                      date: new Date(
+                        item.created_at
+                      ).toLocaleDateString(
                         'es-CO',
                         {
                           day: 'numeric',
@@ -266,7 +408,8 @@ export default async function NoticiasPage({
                 </h3>
 
                 <p className="mt-2 text-sm text-slate-400">
-                  Intenta con otra palabra o selecciona otra categoría.
+                  Intenta con otra palabra o selecciona
+                  otra categoría.
                 </p>
               </div>
             )}
