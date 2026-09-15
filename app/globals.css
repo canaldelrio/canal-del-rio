@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: #020a13;
+  color: #f8fafc;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.card-gradient { background: linear-gradient(180deg, rgba(3,14,27,.05) 0%, rgba(1,7,14,.95) 100%); }
+.hero-gradient { background: linear-gradient(90deg, rgba(1,8,16,.05) 15%, rgba(1,8,16,.82) 100%), linear-gradient(0deg, rgba(0,0,0,.86) 0%, transparent 65%); }
+.glass { background: rgba(4,15,27,.76); backdrop-filter: blur(10px); }
