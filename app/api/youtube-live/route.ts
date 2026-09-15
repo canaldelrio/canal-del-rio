@@ -2,13 +2,21 @@ import { NextResponse } from 'next/server'
 
 const CHANNEL_ID = 'UC9DeY1sDhxmysPJEZJmHR4Q'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET() {
   try {
     const apiKey = process.env.YOUTUBE_API_KEY
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Falta YOUTUBE_API_KEY' },
+        {
+          live: false,
+          videoId: null,
+          title: null,
+          error: 'Falta YOUTUBE_API_KEY',
+        },
         { status: 500 }
       )
     }
@@ -19,19 +27,26 @@ export async function GET() {
       `&channelId=${CHANNEL_ID}` +
       `&eventType=live` +
       `&type=video` +
-      `&maxResults=1` +
+      `&maxResults=5` +
       `&key=${apiKey}`
 
     const response = await fetch(url, {
-      next: { revalidate: 30 },
+      cache: 'no-store',
     })
 
     if (!response.ok) {
       const error = await response.text()
 
+      console.error('Error YouTube API:', response.status, error)
+
       return NextResponse.json(
-        { error: 'Error consultando YouTube', details: error },
-        { status: response.status }
+        {
+          live: false,
+          videoId: null,
+          title: null,
+          error: 'Error consultando YouTube',
+        },
+        { status: 500 }
       )
     }
 
@@ -53,10 +68,15 @@ export async function GET() {
       title: liveVideo.snippet.title,
     })
   } catch (error) {
-    console.error('YouTube Live error:', error)
+    console.error('Error comprobando transmisión:', error)
 
     return NextResponse.json(
-      { error: 'Error interno' },
+      {
+        live: false,
+        videoId: null,
+        title: null,
+        error: 'Error interno',
+      },
       { status: 500 }
     )
   }

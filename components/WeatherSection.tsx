@@ -40,58 +40,99 @@ export default function WeatherSection() {
   }, [])
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#030b14] p-5">
-      <SectionTitle title="El clima" />
+    <section className="overflow-hidden rounded-xl border border-white/10 bg-[#030b14]">
+      {/* ENCABEZADO */}
+      <div className="border-b border-white/10 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <span className="h-6 w-1 rounded-full bg-sky-500" />
+
+          <h2 className="text-xl font-black uppercase tracking-tight">
+            El clima
+          </h2>
+        </div>
+
+        <p className="mt-1 text-xs text-slate-400">
+          Condiciones actuales en nuestra región
+        </p>
+      </div>
 
       {loading ? (
-        <div className="mt-5 text-sm text-slate-400">
+        <div className="p-5 text-sm text-slate-400">
           Consultando el clima...
         </div>
       ) : weather ? (
-        <>
-          <div className="mt-4 flex items-center justify-between gap-4">
+        <div className="p-5">
+          {/* TEMPERATURA */}
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <CloudSun size={46} />
+              <div className="rounded-xl bg-sky-500/10 p-3">
+                <CloudSun
+                  size={42}
+                  className="text-sky-400"
+                />
+              </div>
 
               <div>
-                <div className="text-4xl font-black">
+                <div className="text-4xl font-black leading-none">
                   {Math.round(weather.temperature)}°C
                 </div>
 
-                <div className="text-sm">
+                <div className="mt-2 text-sm font-medium text-slate-300">
                   {getWeatherDescription(weather.weatherCode)}
                 </div>
               </div>
             </div>
 
-            <div className="text-right text-xs leading-6">
-              <b>Gamarra, Cesar</b>
-
-              <div className="mt-1 flex items-center justify-end gap-1">
-                <Droplets size={13} />
-                Humedad: {weather.humidity}%
+            <div className="text-right">
+              <div className="text-sm font-bold">
+                Gamarra
               </div>
 
-              <div className="flex items-center justify-end gap-1">
-                <Wind size={13} />
-                Viento: {Math.round(weather.wind)} km/h
+              <div className="text-xs text-slate-400">
+                Cesar
               </div>
             </div>
           </div>
 
+          {/* DATOS */}
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <Droplets size={14} className="text-sky-400" />
+                Humedad
+              </div>
+
+              <div className="mt-1 text-sm font-bold">
+                {weather.humidity}%
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <Wind size={14} className="text-sky-400" />
+                Viento
+              </div>
+
+              <div className="mt-1 text-sm font-bold">
+                {Math.round(weather.wind)} km/h
+              </div>
+            </div>
+          </div>
+
+          {/* BOTÓN */}
           <a
-  href="/clima"
-  className="mt-4 block w-full rounded border border-white/10 py-3 text-center text-sm hover:bg-white/5"
->
-  Ver pronóstico completo
-</a>
-        </>
+            href="/clima"
+            className="mt-4 block w-full rounded-lg border border-sky-500/30 py-3 text-center text-sm font-bold transition hover:border-sky-500/60 hover:bg-sky-500/10"
+          >
+            Ver pronóstico completo →
+          </a>
+        </div>
       ) : (
-        <div className="mt-5 text-sm text-red-400">
+        <div className="p-5 text-sm text-red-400">
           No se pudo obtener el clima.
         </div>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -105,15 +146,5 @@ function getWeatherDescription(code: number) {
   if (code <= 82) return 'Chubascos'
   if (code <= 86) return 'Chubascos fuertes'
   if (code >= 95) return 'Tormenta'
-
   return 'Condiciones variables'
-}
-
-function SectionTitle({ title }: { title: string }) {
-  return (
-    <h2 className="mb-3 flex items-center gap-2 text-xl font-black uppercase">
-      <span className="h-5 w-0.5 bg-sky-500" />
-      {title}
-    </h2>
-  )
 }
