@@ -1,4 +1,5 @@
 import './globals.css'
+import { Analytics } from '@vercel/analytics/next'
 
 export const metadata = {
   title: 'Canal del Río | Tu canal, tu comunidad, nuestra voz',
@@ -13,7 +14,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Analytics />
+      </body>
     </html>
   )
 }
