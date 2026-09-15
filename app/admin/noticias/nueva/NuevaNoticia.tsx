@@ -229,7 +229,12 @@ export default function NuevaNoticia() {
 
     if (!files.length) return
 
-    const images = []
+    const images: {
+  id: string
+  file: File
+  url: string
+  preview: string
+}[] = []
 
     for (const file of files) {
       if (!file.type.startsWith('image/')) {
@@ -291,7 +296,12 @@ export default function NuevaNoticia() {
 
     if (!files.length) return
 
-    const nuevasImagenes = []
+    const nuevasImagenes: {
+  id: string
+  file: File
+  url: string
+  preview: string
+}[] = []
 
     for (const file of files) {
       if (!file.type.startsWith('image/')) {
