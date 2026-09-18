@@ -2,12 +2,7 @@
 
 import { ChangeEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from '@/lib/supabase/cliente'
 
 type ContentBlock =
   | {
@@ -70,7 +65,9 @@ function crearSlug(texto: string) {
 }
 
 function crearId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`
 }
 
 export default function NuevaNoticia() {
@@ -81,12 +78,15 @@ export default function NuevaNoticia() {
   const [category, setCategory] = useState('Noticias')
   const [subcategory, setSubcategory] = useState('')
 
-  const [image, setImage] = useState('')
-  const [mainImageFile, setMainImageFile] = useState<File | null>(null)
-  const [mainImagePreview, setMainImagePreview] = useState('')
+  const [mainImageFile, setMainImageFile] =
+    useState<File | null>(null)
+
+  const [mainImagePreview, setMainImagePreview] =
+    useState('')
 
   const [excerpt, setExcerpt] = useState('')
-  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([])
+  const [contentBlocks, setContentBlocks] =
+    useState<ContentBlock[]>([])
 
   const [author, setAuthor] = useState('')
   const [minutes, setMinutes] = useState('3')
@@ -103,7 +103,8 @@ export default function NuevaNoticia() {
 
       contentBlocks.forEach((block) => {
         if (
-          (block.type === 'image' || block.type === 'video') &&
+          (block.type === 'image' ||
+            block.type === 'video') &&
           block.preview
         ) {
           URL.revokeObjectURL(block.preview)
@@ -134,12 +135,16 @@ export default function NuevaNoticia() {
     if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      setError('La imagen principal debe ser una imagen válida.')
+      setError(
+        'La imagen principal debe ser una imagen válida.'
+      )
       return
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setError('La imagen principal no puede superar 5 MB.')
+      setError(
+        'La imagen principal no puede superar 5 MB.'
+      )
       return
     }
 
@@ -167,7 +172,9 @@ export default function NuevaNoticia() {
   function agregarMultimedia(
     event: ChangeEvent<HTMLInputElement>
   ) {
-    const files = Array.from(event.target.files ?? [])
+    const files = Array.from(
+      event.target.files ?? []
+    )
 
     if (!files.length) return
 
@@ -216,6 +223,7 @@ export default function NuevaNoticia() {
         ...prev,
         ...nuevosBloques,
       ])
+
       setError('')
     }
 
@@ -225,16 +233,18 @@ export default function NuevaNoticia() {
   function agregarContenedorImagenes(
     event: ChangeEvent<HTMLInputElement>
   ) {
-    const files = Array.from(event.target.files ?? [])
+    const files = Array.from(
+      event.target.files ?? []
+    )
 
     if (!files.length) return
 
     const images: {
-  id: string
-  file: File
-  url: string
-  preview: string
-}[] = []
+      id: string
+      file: File
+      url: string
+      preview: string
+    }[] = []
 
     for (const file of files) {
       if (!file.type.startsWith('image/')) {
@@ -275,10 +285,14 @@ export default function NuevaNoticia() {
     event.target.value = ''
   }
 
-  function cambiarTexto(id: string, content: string) {
+  function cambiarTexto(
+    id: string,
+    content: string
+  ) {
     setContentBlocks((prev) =>
       prev.map((block) =>
-        block.id === id && block.type === 'text'
+        block.id === id &&
+        block.type === 'text'
           ? {
               ...block,
               content,
@@ -292,16 +306,18 @@ export default function NuevaNoticia() {
     blockId: string,
     event: ChangeEvent<HTMLInputElement>
   ) {
-    const files = Array.from(event.target.files ?? [])
+    const files = Array.from(
+      event.target.files ?? []
+    )
 
     if (!files.length) return
 
     const nuevasImagenes: {
-  id: string
-  file: File
-  url: string
-  preview: string
-}[] = []
+      id: string
+      file: File
+      url: string
+      preview: string
+    }[] = []
 
     for (const file of files) {
       if (!file.type.startsWith('image/')) {
@@ -446,7 +462,9 @@ export default function NuevaNoticia() {
         })
       }
 
-      return prev.filter((item) => item.id !== id)
+      return prev.filter(
+        (item) => item.id !== id
+      )
     })
   }
 
@@ -515,95 +533,220 @@ export default function NuevaNoticia() {
   function obtenerTextoCompleto() {
     return contentBlocks
       .filter(
-        (block): block is Extract<
+        (
+          block
+        ): block is Extract<
           ContentBlock,
           { type: 'text' }
         > => block.type === 'text'
       )
-      .map((block) => block.content.trim())
+      .map((block) =>
+        block.content.trim()
+      )
       .filter(Boolean)
       .join('\n\n')
   }
 
   async function guardarNoticia() {
+    if (saving) return
+
     setError('')
-
-    if (!title.trim()) {
-      setError('Debes escribir un título.')
-      return
-    }
-
-    if (!slug.trim()) {
-      setError('Debes escribir un slug.')
-      return
-    }
-
-    if (!excerpt.trim()) {
-      setError('Debes escribir una entradilla.')
-      return
-    }
-
-    if (!mainImageFile) {
-      setError(
-        'Debes seleccionar una imagen principal.'
-      )
-      return
-    }
-
-    if (
-      category === 'Deportes' &&
-      !subcategory
-    ) {
-      setError(
-        'Debes seleccionar una sección deportiva.'
-      )
-      return
-    }
-
-    const textoCompleto =
-      obtenerTextoCompleto()
-
-    if (!textoCompleto) {
-      setError(
-        'Debes agregar al menos un bloque de texto.'
-      )
-      return
-    }
-
-    const gruposVacios = contentBlocks.some(
-      (block) =>
-        block.type === 'image_group' &&
-        block.images.length === 0
-    )
-
-    if (gruposVacios) {
-      setError(
-        'Hay un contenedor de imágenes vacío.'
-      )
-      return
-    }
-
     setSaving(true)
 
     try {
+      // =====================================================
+      // 1. COMPROBAR CONFIGURACIÓN DE SUPABASE
+      // =====================================================
+
+      if (
+        !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      ) {
+        throw new Error(
+          'Supabase no está configurado correctamente. Revisa las variables NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.'
+        )
+      }
+
+      // =====================================================
+      // 2. COMPROBAR SESIÓN
+      // =====================================================
+
+      const {
+        data: sessionData,
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError) {
+        console.error(
+          'ERROR OBTENIENDO SESIÓN:',
+          sessionError
+        )
+
+        throw new Error(
+          `No se pudo obtener la sesión de Supabase: ${sessionError.message}`
+        )
+      }
+
+      const session =
+        sessionData.session
+
+      if (!session) {
+        throw new Error(
+          'No hay una sesión de administrador activa. Cierra sesión, vuelve a ingresar al panel y prueba nuevamente.'
+        )
+      }
+
+      console.log(
+        'SESIÓN ENCONTRADA:',
+        session.user.id
+      )
+
+      // =====================================================
+      // 3. COMPROBAR USUARIO AUTENTICADO
+      // =====================================================
+
+      const {
+        data: userData,
+        error: authError,
+      } = await supabase.auth.getUser()
+
+      if (authError) {
+        console.error(
+          'ERROR DE AUTENTICACIÓN:',
+          authError
+        )
+
+        throw new Error(
+          `No se pudo verificar el usuario de Supabase: ${authError.message}`
+        )
+      }
+
+      const user = userData.user
+
+      if (!user) {
+        throw new Error(
+          'Supabase encontró la sesión, pero no pudo identificar al usuario.'
+        )
+      }
+
+      console.log(
+        'USUARIO AUTENTICADO:',
+        user.id
+      )
+
+      // =====================================================
+      // 4. VALIDACIONES
+      // =====================================================
+
+      if (!title.trim()) {
+        throw new Error(
+          'Debes escribir un título.'
+        )
+      }
+
+      if (!slug.trim()) {
+        throw new Error(
+          'Debes escribir un slug.'
+        )
+      }
+
+      if (!excerpt.trim()) {
+        throw new Error(
+          'Debes escribir una entradilla.'
+        )
+      }
+
+      if (!mainImageFile) {
+        throw new Error(
+          'Debes seleccionar una imagen principal.'
+        )
+      }
+
+      if (
+        category === 'Deportes' &&
+        !subcategory.trim()
+      ) {
+        throw new Error(
+          'Debes seleccionar una sección deportiva.'
+        )
+      }
+
+      const textoCompleto =
+        obtenerTextoCompleto()
+
+      if (!textoCompleto) {
+        throw new Error(
+          'Debes agregar al menos un bloque de texto.'
+        )
+      }
+
+      const gruposVacios =
+        contentBlocks.some(
+          (block) =>
+            block.type === 'image_group' &&
+            block.images.length === 0
+        )
+
+      if (gruposVacios) {
+        throw new Error(
+          'Hay un contenedor de imágenes vacío.'
+        )
+      }
+
+      // =====================================================
+      // 5. SUBIR IMAGEN PRINCIPAL
+      // =====================================================
+
+      console.log(
+        'Subiendo imagen principal...'
+      )
+
       const imageUrl =
         await subirArchivo(
           mainImageFile,
           'main'
         )
 
-      const savedBlocks: SavedContentBlock[] =
-        []
+      if (!imageUrl) {
+        throw new Error(
+          'Supabase no devolvió la URL de la imagen principal.'
+        )
+      }
+
+      console.log(
+        'Imagen principal subida:',
+        imageUrl
+      )
+
+      // =====================================================
+      // 6. PROCESAR BLOQUES
+      // =====================================================
+
+      const savedBlocks:
+        SavedContentBlock[] = []
 
       for (const block of contentBlocks) {
+        // ---------------------------------------------------
+        // TEXTO
+        // ---------------------------------------------------
+
         if (block.type === 'text') {
-          savedBlocks.push({
-            type: 'text',
-            content: block.content,
-          })
+          const contenido =
+            block.content.trim()
+
+          if (contenido) {
+            savedBlocks.push({
+              type: 'text',
+              content: contenido,
+            })
+          }
 
           continue
         }
+
+        // ---------------------------------------------------
+        // IMAGEN / VIDEO
+        // ---------------------------------------------------
 
         if (
           block.type === 'image' ||
@@ -612,11 +755,26 @@ export default function NuevaNoticia() {
           let url = block.url
 
           if (block.file) {
+            console.log(
+              `Subiendo ${block.type}...`
+            )
+
             url = await subirArchivo(
               block.file,
               block.type === 'image'
                 ? 'content-images'
                 : 'content-videos'
+            )
+
+            console.log(
+              `${block.type} subido:`,
+              url
+            )
+          }
+
+          if (!url) {
+            throw new Error(
+              `No se pudo obtener la URL del ${block.type} del contenido.`
             )
           }
 
@@ -628,22 +786,43 @@ export default function NuevaNoticia() {
           continue
         }
 
-        if (block.type === 'image_group') {
+        // ---------------------------------------------------
+        // GRUPO DE IMÁGENES
+        // ---------------------------------------------------
+
+        if (
+          block.type === 'image_group'
+        ) {
           const imageUrls: string[] = []
 
           for (const image of block.images) {
             let url = image.url
 
             if (image.file) {
+              console.log(
+                'Subiendo imagen del grupo...'
+              )
+
               url = await subirArchivo(
                 image.file,
                 'content-images'
+              )
+
+              console.log(
+                'Imagen del grupo subida:',
+                url
               )
             }
 
             if (url) {
               imageUrls.push(url)
             }
+          }
+
+          if (imageUrls.length === 0) {
+            throw new Error(
+              'Uno de los contenedores de imágenes no contiene imágenes válidas.'
+            )
           }
 
           savedBlocks.push({
@@ -653,8 +832,12 @@ export default function NuevaNoticia() {
         }
       }
 
-      const media = savedBlocks
-        .flatMap((block) => {
+      // =====================================================
+      // 7. CREAR MEDIA
+      // =====================================================
+
+      const media = savedBlocks.flatMap(
+        (block) => {
           if (
             block.type === 'image' ||
             block.type === 'video'
@@ -667,7 +850,9 @@ export default function NuevaNoticia() {
             ]
           }
 
-          if (block.type === 'image_group') {
+          if (
+            block.type === 'image_group'
+          ) {
             return block.images.map(
               (url) => ({
                 type: 'image',
@@ -677,56 +862,140 @@ export default function NuevaNoticia() {
           }
 
           return []
-        })
+        }
+      )
+
+      // =====================================================
+      // 8. PREPARAR NOTICIA
+      // =====================================================
+
+      const noticia = {
+        title: title.trim(),
+
+        slug: slug.trim(),
+
+        category:
+          category.trim() || 'Noticias',
+
+        subcategory:
+          category === 'Deportes'
+            ? subcategory.trim()
+            : null,
+
+        image: imageUrl,
+
+        media,
+
+        content: textoCompleto,
+
+        content_blocks:
+          savedBlocks,
+
+        excerpt:
+          excerpt.trim(),
+
+        author:
+          author.trim() ||
+          'Canal del Río',
+
+        minutes:
+          minutes.trim() || '3',
+
+        published,
+      }
+
+      console.log(
+        'ENVIANDO NOTICIA A SUPABASE:',
+        noticia
+      )
+
+      // =====================================================
+      // 9. INSERTAR EN NEWS
+      // =====================================================
 
       const {
+        data: noticiaCreada,
         error: insertError,
       } = await supabase
         .from('news')
-        .insert({
-          title: title.trim(),
-
-          slug: slug.trim(),
-
-          category:
-            category.trim() || 'Noticias',
-
-          subcategory:
-            category === 'Deportes'
-              ? subcategory.trim()
-              : null,
-
-          image: imageUrl || '',
-
-          media,
-
-          content: textoCompleto,
-
-          content_blocks: savedBlocks,
-
-          excerpt: excerpt.trim(),
-
-          author:
-            author.trim() ||
-            'Canal del Río',
-
-          minutes:
-            minutes.trim() || '3',
-
-          published,
-        })
+        .insert(noticia)
+        .select()
+        .single()
 
       if (insertError) {
-        throw insertError
+        console.error(
+          'ERROR INSERTANDO EN NEWS:',
+          insertError
+        )
+
+        throw new Error(
+          [
+            'Supabase rechazó la noticia.',
+            `Código: ${insertError.code || 'N/D'}`,
+            `Mensaje: ${insertError.message || 'N/D'}`,
+            `Detalles: ${insertError.details || 'N/D'}`,
+            `Ayuda: ${insertError.hint || 'N/D'}`,
+          ].join('\n')
+        )
       }
+
+      if (!noticiaCreada) {
+        throw new Error(
+          'Supabase no devolvió la noticia creada después del INSERT.'
+        )
+      }
+
+      console.log(
+        'NOTICIA GUARDADA CORRECTAMENTE:',
+        noticiaCreada
+      )
+
+      // =====================================================
+      // 10. REDIRECCIÓN
+      // =====================================================
 
       router.push('/admin/noticias')
       router.refresh()
     } catch (error) {
       console.error(
-        'Error guardando noticia:',
+        '===================================='
+      )
+
+      console.error(
+        'ERROR COMPLETO GUARDANDO NOTICIA:',
         error
       )
+
+      console.error(
+        '===================================='
+      )
+
+      if (
+        error &&
+        typeof error === 'object'
+      ) {
+        const supabaseError =
+          error as {
+            message?: string
+            details?: string
+            hint?: string
+            code?: string
+          }
+
+        console.error({
+          code:
+            supabaseError.code || null,
+
+          message:
+            supabaseError.message || null,
+
+          details:
+            supabaseError.details || null,
+
+          hint:
+            supabaseError.hint || null,
+        })
+      }
 
       setError(
         error instanceof Error
@@ -750,18 +1019,20 @@ export default function NuevaNoticia() {
         </div>
 
         <p className="mt-2 text-sm text-slate-400">
-          Crea y publica una nueva noticia en Canal del Río.
+          Crea y publica una nueva noticia en
+          Canal del Río.
         </p>
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="mb-6 whitespace-pre-line rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {error}
         </div>
       )}
 
       <div className="space-y-6">
         {/* INFORMACIÓN PRINCIPAL */}
+
         <section className="rounded-xl border border-white/10 bg-[#030b14] p-5">
           <h2 className="mb-5 text-lg font-black uppercase text-white">
             Información principal
@@ -769,6 +1040,7 @@ export default function NuevaNoticia() {
 
           <div className="space-y-5">
             {/* TÍTULO */}
+
             <div>
               <label
                 htmlFor="title"
@@ -789,6 +1061,7 @@ export default function NuevaNoticia() {
             </div>
 
             {/* SLUG */}
+
             <div>
               <label
                 htmlFor="slug"
@@ -802,7 +1075,9 @@ export default function NuevaNoticia() {
                 value={slug}
                 onChange={(event) =>
                   setSlug(
-                    crearSlug(event.target.value)
+                    crearSlug(
+                      event.target.value
+                    )
                   )
                 }
                 placeholder="slug-de-la-noticia"
@@ -811,6 +1086,7 @@ export default function NuevaNoticia() {
             </div>
 
             {/* CATEGORÍA */}
+
             <div>
               <label
                 htmlFor="category"
@@ -877,6 +1153,7 @@ export default function NuevaNoticia() {
             </div>
 
             {/* SUBCATEGORÍA DEPORTIVA */}
+
             {category === 'Deportes' && (
               <div>
                 <label
@@ -918,13 +1195,15 @@ export default function NuevaNoticia() {
                 </select>
 
                 <p className="mt-2 text-xs text-slate-500">
-                  Esta sección determina dónde aparecerá
-                  la noticia dentro de Deportes.
+                  Esta sección determina dónde
+                  aparecerá la noticia dentro de
+                  Deportes.
                 </p>
               </div>
             )}
 
             {/* ENTRADILLA */}
+
             <div>
               <label
                 htmlFor="excerpt"
@@ -948,6 +1227,7 @@ export default function NuevaNoticia() {
             </div>
 
             {/* AUTOR Y TIEMPO */}
+
             <div className="grid gap-5 md:grid-cols-2">
               <div>
                 <label
@@ -995,20 +1275,24 @@ export default function NuevaNoticia() {
         </section>
 
         {/* IMAGEN PRINCIPAL */}
+
         <section className="rounded-xl border border-white/10 bg-[#030b14] p-5">
           <h2 className="mb-2 text-lg font-black uppercase text-white">
             Imagen principal
           </h2>
 
           <p className="mb-5 text-xs text-slate-500">
-            Esta será la imagen principal que aparecerá
-            en la portada y al abrir la noticia.
+            Esta será la imagen principal que
+            aparecerá en la portada y al abrir la
+            noticia.
           </p>
 
           <input
             type="file"
             accept="image/*"
-            onChange={seleccionarImagenPrincipal}
+            onChange={
+              seleccionarImagenPrincipal
+            }
             className="block w-full rounded-lg border border-white/10 bg-[#081b30] p-3 text-sm text-slate-300 file:mr-4 file:rounded-md file:border-0 file:bg-sky-500 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-sky-400"
           />
 
@@ -1024,6 +1308,7 @@ export default function NuevaNoticia() {
         </section>
 
         {/* CONTENIDO */}
+
         <section className="rounded-xl border border-white/10 bg-[#030b14] p-5">
           <div className="mb-5">
             <h2 className="text-lg font-black uppercase text-white">
@@ -1031,8 +1316,9 @@ export default function NuevaNoticia() {
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              Organiza el artículo colocando textos,
-              imágenes, videos y documentos en el orden que quieras.
+              Organiza el artículo colocando
+              textos, imágenes, videos y
+              documentos en el orden que quieras.
             </p>
           </div>
 
@@ -1076,11 +1362,13 @@ export default function NuevaNoticia() {
             {contentBlocks.length === 0 && (
               <div className="rounded-xl border border-dashed border-white/10 bg-[#081b30]/40 px-5 py-10 text-center">
                 <p className="text-sm font-semibold text-slate-400">
-                  Todavía no has agregado contenido.
+                  Todavía no has agregado
+                  contenido.
                 </p>
 
                 <p className="mt-1 text-xs text-slate-600">
-                  Agrega texto, imágenes, videos o un contenedor de imágenes.
+                  Agrega texto, imágenes, videos o
+                  un contenedor de imágenes.
                 </p>
               </div>
             )}
@@ -1171,7 +1459,10 @@ export default function NuevaNoticia() {
                   {block.type === 'image' && (
                     <div className="overflow-hidden rounded-lg border border-white/10">
                       <img
-                        src={block.preview || block.url}
+                        src={
+                          block.preview ||
+                          block.url
+                        }
                         alt="Imagen del contenido"
                         className="max-h-[600px] w-full object-contain"
                       />
@@ -1180,7 +1471,10 @@ export default function NuevaNoticia() {
 
                   {block.type === 'video' && (
                     <video
-                      src={block.preview || block.url}
+                      src={
+                        block.preview ||
+                        block.url
+                      }
                       controls
                       className="max-h-[600px] w-full rounded-lg bg-black"
                     />
@@ -1195,15 +1489,18 @@ export default function NuevaNoticia() {
                         </p>
 
                         <p className="mt-1 text-xs text-slate-500">
-                          Estas imágenes se mostrarán como
-                          una sola secuencia en la noticia.
+                          Estas imágenes se
+                          mostrarán como una sola
+                          secuencia en la noticia.
                         </p>
                       </div>
 
-                      {block.images.length === 0 && (
+                      {block.images.length ===
+                        0 && (
                         <div className="rounded-lg border border-dashed border-white/10 p-8 text-center">
                           <p className="text-xs text-slate-500">
-                            No hay imágenes en este contenedor.
+                            No hay imágenes en
+                            este contenedor.
                           </p>
                         </div>
                       )}
@@ -1232,7 +1529,8 @@ export default function NuevaNoticia() {
 
                                 <div className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-1 text-[10px] font-bold text-white">
                                   Página{' '}
-                                  {imageIndex + 1}
+                                  {imageIndex +
+                                    1}
                                 </div>
                               </div>
 
@@ -1266,7 +1564,8 @@ export default function NuevaNoticia() {
                                   }
                                   disabled={
                                     imageIndex ===
-                                    block.images.length -
+                                    block.images
+                                      .length -
                                       1
                                   }
                                   className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-slate-300 disabled:opacity-30"
@@ -1317,6 +1616,7 @@ export default function NuevaNoticia() {
         </section>
 
         {/* PUBLICACIÓN */}
+
         <section className="rounded-xl border border-white/10 bg-[#030b14] p-5">
           <h2 className="mb-5 text-lg font-black uppercase text-white">
             Publicación
@@ -1341,11 +1641,14 @@ export default function NuevaNoticia() {
         </section>
 
         {/* BOTONES */}
+
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={() =>
-              router.push('/admin/noticias')
+              router.push(
+                '/admin/noticias'
+              )
             }
             disabled={saving}
             className="rounded-lg border border-white/10 bg-[#081b30] px-6 py-3 text-sm font-bold text-slate-300 transition hover:bg-[#0b2945] disabled:opacity-50"
