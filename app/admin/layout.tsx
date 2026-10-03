@@ -40,6 +40,11 @@ export default function AdminLayout({
       href: '/admin/noticias/nueva',
       icono: '➕',
     },
+    {
+      nombre: 'Configuración',
+      href: '/admin/newsroom-preview/configuracion',
+      icono: '🖥️',
+    }
   ]
 
   return (
