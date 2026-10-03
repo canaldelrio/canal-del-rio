@@ -42,7 +42,7 @@ export default function AdminLayout({
     },
     {
       nombre: 'Configuración',
-      href: '/admin/newsroom-preview/page',
+      href: '/admin/newsroom-preview',
       icono: '🖥️',
     }
   ]
